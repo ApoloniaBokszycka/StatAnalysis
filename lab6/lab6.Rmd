@@ -1,0 +1,219 @@
+---
+title: "lab6"
+author: "Apolonia Bokszycka"
+date: "4 kwietnia 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r, echo=FALSE}
+library(ggplot2)
+```
+
+Zad.1.  
+Wczytuję dane i skaluję.
+
+```{r, echo=FALSE}
+wine <- read.csv("C:/Users/LYNX/Documents/Kognitywistyka/Statystyczna Analiza Danych/lab6/wine.csv")
+wine[,2:11] <- apply(wine[,2:11], 2, function(x) (x-mean(x)/sd(x)))
+#w podanym na stronie pliku kolumny nazywaja się "Y, X1, ..., X11", tu Y==quality 
+wine$Y <- as.factor(wine$Y)
+```
+Zad. 2. (przykładowe)  
+```{r, echo=TRUE}
+x <- c(0.42, 0.03, -0.90, 0.15, -1.25, -0.15, -0.01, 0.73, 0.90, -0.82, -0.69)
+distances <- apply(wine[,-1], 1, function(y) sqrt(sum((x-y)^2)))
+k <- 3
+najblizsze_wiersze <- order(distances)[1:k]
+najblizsze_klasy <- wine[najblizsze_wiersze, 1]
+czestosc_klas <- table(najblizsze_klasy)
+czestosc_klas
+najczestsza_klasa <- which.max(czestosc_klas)
+najczestsza_klasa
+najczestsza_klasa <- levels(wine$Quality)[najczestsza_klasa]
+```
+Zad.3.  
+```{r, echo=TRUE}
+#błąd testowy, błąd treningowy
+library(ggplot2)
+library(class)
+indeksy_testowe <- sample(1:nrow(wine), 480, replace=F)
+zbior_testowy <- wine[indeksy_testowe, ]
+zbior_treningowy <- wine[-indeksy_testowe, ] 
+wynik <- knn(zbior_treningowy[,-1], zbior_testowy[,-1], zbior_treningowy[,1], k=3)
+mean(wynik==zbior_testowy[,1])
+
+
+accuracy <- vector()
+k_values <- vector()
+for (i in 1:15){
+  wynik <- knn(zbior_treningowy[,-1], zbior_testowy[,-1], zbior_treningowy[,1], k=i)
+  accuracy[i] <- mean(wynik==zbior_testowy[i,1])
+  k_values[i] <- i
+}
+
+plot(k_values, accuracy)
+dane_ka<- data.frame(k_values=k_values, accuracy=accuracy)
+ggplot(data=dane_ka,aes(x=k_values, y=accuracy)) + theme_minimal()
+```
+Czy jest jakiś sposób żeby nie korzystać z pętli w tym zadaniu?  
+Nie wiem dlaczego nie działa mi ggplot?  
+
+zad.4.  Korzystam z:  
+presision = TP/(TP+FP) // im więcej klas fałszywie zaklasyfikowanych jako dobrych, tym mniejsze presision  
+recall = TP/(TP+FN) // im więcej klas fałszywie zaklasyfikowanych jako złych, tym mniejsze recall  
+
+p_a = 99/(99+0) = 1  
+r_a = 99/(99+1) = 0.99   
+p_b = 1/(1+0) = 1  
+r_b = 1/(1+99) = 0.01  
+
+Zad.5.
+Wyniki dla k=3. Macierz konfuzji:
+```{r, echo=FALSE}
+tabela_klas <- matrix(0, nrow=9, ncol=9)
+wynik <- knn(zbior_treningowy[,-1], zbior_testowy[,-1], zbior_treningowy[,1], k=3)
+zb_test <- as.matrix(zbior_testowy[,1])
+for (i in 1:length(zbior_testowy[,1])){
+  for (j in 3:9){
+    if(zb_test[i]==j & wynik[i]==j){
+      tabela_klas[j,j] <- tabela_klas[j,j]+1
+      break
+    }
+    if(zb_test[i]==j & wynik[i]!=j ){
+      for (m in 3:9){
+        if(wynik[i]==m){
+          tabela_klas[j,m] <- tabela_klas[j,m]+1
+        }
+      }
+    }
+  }
+}
+show(tabela_klas[3:9,3:9])
+#PYTANIE: Czy jest lepszy sposób niż powyższa pętla?
+```
+Tabela z wartościami "presision" oraz "recall" dla poszczególnych klas (od 3 do 9) przy k=3:
+```{r, echo=FALSE}
+precision_i <- c(0,0,0,0,0,0,0,0,0)
+recall_i <- c(0,0,0,0,0,0,0,0,0)
+#pr_re <- data.frame(presision=precision_i, recall=recall_i)
+pr_re <- matrix(0, nrow=9, ncol=2)
+for (i in 3:9){
+  tp <- tabela_klas[i,i]
+  fp <- (sum(tabela_klas[i,])-tp)
+  fn <- (sum(tabela_klas[,i])-tp)
+  pr <- (tp/(tp+fp))
+  re <- (tp/(tp+fn))
+  pr_re[i,1] <- pr
+  pr_re[i,2] <- re
+}
+#PYTANIE: Niestety nie wiem dlaczego nie działały mi funckje ze wskazówki - jak powinien wyglądać kod z ich wykorzystaniem?
+
+pr_re <- pr_re[-(1:2),]
+dane_prre <- data.frame(presision=pr_re[,1], recall=pr_re[,2], row.names = c("3","4","5","6","7","8","9"))
+show(dane_prre)
+```
+Wyniki dla k=8. Macierz konfuzji:
+```{r, echo=FALSE}
+tabela_klas <- matrix(0, nrow=9, ncol=9)
+wynik <- knn(zbior_treningowy[,-1], zbior_testowy[,-1], zbior_treningowy[,1], k=8)
+zb_test <- as.matrix(zbior_testowy[,1])
+for (i in 1:length(zbior_testowy[,1])){
+  for (j in 3:9){
+    if(zb_test[i]==j & wynik[i]==j){
+      tabela_klas[j,j] <- tabela_klas[j,j]+1
+      break
+    }
+    if(zb_test[i]==j & wynik[i]!=j ){
+      for (m in 3:9){
+        if(wynik[i]==m){
+          tabela_klas[j,m] <- tabela_klas[j,m]+1
+        }
+      }
+    }
+  }
+}
+show(tabela_klas[3:9,3:9])
+```
+Tabela z wartościami "presision" oraz "recall" dla poszczególnych klas (od 3 do 9) przy k=8:
+```{r, echo=FALSE}
+precision_i <- c(0,0,0,0,0,0,0,0,0)
+recall_i <- c(0,0,0,0,0,0,0,0,0)
+#pr_re <- data.frame(presision=precision_i, recall=recall_i)
+pr_re <- matrix(0, nrow=9, ncol=2)
+for (i in 3:9){
+  tp <- tabela_klas[i,i]
+  fp <- (sum(tabela_klas[i,])-tp)
+  fn <- (sum(tabela_klas[,i])-tp)
+  pr <- (tp/(tp+fp))
+  re <- (tp/(tp+fn))
+  pr_re[i,1] <- pr
+  pr_re[i,2] <- re
+}
+pr_re <- pr_re[-(1:2),]
+dane_prre <- data.frame(presision=pr_re[,1], recall=pr_re[,2], row.names = c("3","4","5","6","7","8","9"))
+show(dane_prre)
+```
+
+Wyniki dla k=15. Macierz konfuzji:
+```{r, echo=FALSE}
+tabela_klas <- matrix(0, nrow=9, ncol=9)
+wynik <- knn(zbior_treningowy[,-1], zbior_testowy[,-1], zbior_treningowy[,1], k=3)
+zb_test <- as.matrix(zbior_testowy[,1])
+for (i in 1:length(zbior_testowy[,1])){
+  for (j in 3:9){
+    if(zb_test[i]==j & wynik[i]==j){
+      tabela_klas[j,j] <- tabela_klas[j,j]+1
+      break
+    }
+    if(zb_test[i]==j & wynik[i]!=j ){
+      for (m in 3:9){
+        if(wynik[i]==m){
+          tabela_klas[j,m] <- tabela_klas[j,m]+1
+        }
+      }
+    }
+  }
+}
+show(tabela_klas[3:9,3:9])
+```
+Tabela z wartościami "presision" oraz "recall" dla poszczególnych klas (od 3 do 9) przy k=15:
+```{r, echo=FALSE}
+precision_i <- c(0,0,0,0,0,0,0,0,0)
+recall_i <- c(0,0,0,0,0,0,0,0,0)
+#pr_re <- data.frame(presision=precision_i, recall=recall_i)
+pr_re <- matrix(0, nrow=9, ncol=2)
+for (i in 3:9){
+  tp <- tabela_klas[i,i]
+  fp <- (sum(tabela_klas[i,])-tp)
+  fn <- (sum(tabela_klas[,i])-tp)
+  pr <- (tp/(tp+fp))
+  re <- (tp/(tp+fn))
+  pr_re[i,1] <- pr
+  pr_re[i,2] <- re
+}
+pr_re <- pr_re[-(1:2),]
+dane_prre <- data.frame(presision=pr_re[,1], recall=pr_re[,2], row.names = c("3","4","5","6","7","8","9"))
+show(dane_prre)
+```
+
+
+
+Jeśli klasyfikator twierdzi, że wino ma jakość 7, to jakie jest prawdopodobieństwo, że wino rzeczywiście ma taką jakość?  
+między około 33% a 46% 
+  
+Jeśli wino ma jakość 5, to jakie jest prawdopodobieństwo, że klasyfikator zaklasyfikuje je poprawnie?  
+około 50%  
+  
+Czy klasyfikator lepiej klasyfikuje wina o rzadkich, czy o powszechnych jakościach? Która jakość wina jest poprawnie klasyfikowana najczęściej? Która klasa zwrócona przez klasyfikator jest najbardziej wiarygodna?  
+Klasyfikator lepiej klasyfikuje wina o powszechnych jakościach.  
+Klasa 6 jest poprawnie klasyfikowana najczęściej.  
+Klasa 6 jest również najbardziej wiarygodna.  
+  
+Jaka jest szansa, że w rzeczywistości wino jest lepsze, niż twierdzi klasyfikator? A jaka, że gorsze?  
+
+Niestety nie wiem jak odpowiedzieć na ostatnie pytanie.
+
+

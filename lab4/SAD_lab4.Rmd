@@ -1,0 +1,171 @@
+---
+title: "lab4"
+author: "Apolonia Bokszycka"
+date: "19 marca 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Zadanie przykładowe.  
+
+```{r, echo=FALSE}
+N = 110
+X = as.integer(110*0.667)
+
+```
+X to statystyka testowa. Sprawdźmy, czy przyjmuje nietypowo wysoką wartość - obliczmy P(X>=73). Wartość P(X>=73) to p-value, jeżeli jest zbyt niska (mniejsza niż 0.05) to odrzucimy H0.
+
+```{r, echo=FALSE}
+p.value = 1 - pbinom(X - 1, N, 0.5) # = P(X >= successes)
+show(p.value)
+```
+Zatem otrzymanie wartości X-a przynajmniej równej 73 jest bardzo nieprawdopodobne (X przyjmuje nietypowo wysoką wartość). P-value<0.05 => odrzucamy HO. Przyjmujemy H1: R. longicorn preferencyjnie (częściej niż losowo) osiedla się w składach drewna.
+```{r, echo=FALSE}
+library(ggplot2)
+data.to.plot <- data.frame('X' = 1:N, 'dbinom' = dbinom(1:N, N, 0.5), 'Typical' = 1 - pbinom(1:N - 1, N, 0.5) >= 0.05)
+
+ggplot(data.to.plot) + geom_point(aes(x=X, y=dbinom, col=Typical)) + ggtitle('Rozkład zmiennej X przy założeniu H0') + theme_minimal() + geom_point(aes(x = 73, y = dbinom(73, N, 0.5)), col=I('red'), shape=1, size=4)
+```
+  
+Zad.1.  
+H0: Wybór siedliska nie zależy od okresu.  
+H1: Wybór siedliska zależy od okresu.  
+Przyjmuję poziom istotności róWny 0.05.  
+Obliczam tabelę kontyngencji dla zaobserwowanych liczebności.  
+```{r, echo=FALSE}
+probabilities_observed <- c(0.4*0.26, 0.76*(1-0.26), 0.6*0.26,0.24*(1-0.26))
+probabilities_expected <- c(0.667*0.26,0.667*(1-0.26), (1-0.667)*0.26, (1-0.667)*(1-0.26))
+num_o <- as.integer(probabilities_observed*N)
+num_e <- as.integer(probabilities_expected*N)
+contingency_table <- matrix(num_o,ncol=2,byrow=TRUE)
+colnames(contingency_table) <- c("Liczba wystąpień przed 2000 r.","Liczba wystąpień po 2000 r.")
+rownames(contingency_table) <- c("skład drewna","siedlisko naturalne")
+contingency_table <- as.table(contingency_table)
+show(contingency_table)
+```
+Następnie obliczam statystykę chi^2 oraz p-value (odpowiednio):
+```{r, echo=FALSE}
+show(chi2 <- sum(((num_o-num_e)^2)/num_e))
+show(1-pchisq(13.75731, 1))
+```
+Wartość p-value wskazuje na to, że bardzo nieprawdopodobnym jest otrzymanie takiej próbki, przy założeniu niezależności siedliska i okresu czasu.  
+P-value jest mniejsze niż ustalony poziom istotności, więc odrzucam H0 i przyjmuję H1. 
+Wniosek: Wybór siedliska zależy od okresu.  
+  
+Sprawdzam wyniki przy pomocy chisq.test:
+```{r, echo=FALSE}
+show(chisq.test(contingency_table, correct=F))
+```
+P-value także poniżej poziomu istotności. Nie rozumiem jednak czemu wyszły inne wartości?
+
+Zad.2.  
+Tabela danych po przygotowaniu danych:
+```{r, echo=FALSE}
+Zadluzenie.gmin <- read.delim("~/Kognitywistyka/Statystyczna Analiza Danych/lab3/Zadluzenie gmin.csv", colClasses = c('factor', 'factor', 'factor', 'numeric', 'factor', 'factor'))
+
+r = getOption("repos")
+r["CRAN"] = "http://cran.us.r-project.org"
+options(repos = r)
+install.packages("stringr")
+
+#czyszczę dane:
+Zadluzenie.gmin_clean <- Zadluzenie.gmin[Zadluzenie.gmin$ZadĹ.uĹĽenie.gmin <=100,]
+znaki <- substr(Zadluzenie.gmin_clean$Kod.Teryt, 1, 2)
+Zadluzenie.gmin_clean$Znaki <- znaki
+
+slownik <- c('02' = 'Dolnośląskie', '04' = 'Kujawsko-pomorskie',
+             '06' = 'Lubelskie', '08' = 'Lubuskie',
+             '10' = 'Łódzkie', '12' = 'Małopolskie',
+             '14' = 'Mazowieckie', '16' = 'Opolskie', 
+             '18' = 'Podkarpackie', '20' = 'Podlaskie',
+             '22' = 'Pomorskie', '24' = 'Śląskie',
+             '26' = 'Świętokrzyskie', '28' = 'Warmińsko-mazurskie',
+             '30' = 'Wielkopolskie',  '32' = 'Zachodniopomorskie')
+
+Zadluzenie.gmin_clean$Nazwy.Wojewodztw <- slownik[Zadluzenie.gmin_clean$Znaki]
+#show(Zadluzenie.gmin_clean)
+```
+Zad.3.  
+H0: Średnie zadłużenie gminy w województwie mazowieckim jest róWne 25%. 
+H1: Średnie zadłużenie gminy w województwie mazowieckim jest mniejsze niż 25%.
+Przyjmuję poziom istotności równy 0.05.
+Statystyka T przy założeniu H0 wynosi:
+
+```{r, echo=FALSE}
+mazowieckie <- Zadluzenie.gmin[Zadluzenie.gmin_clean$Nazwy.Wojewodztw == 'Mazowieckie', ]
+n <- dim(mazowieckie)[1]
+df <- n-1
+mean_mazowieckie <- mean(mazowieckie$ZadĹ.uĹĽenie.gmin)
+s <- var(mazowieckie$ZadĹ.uĹĽenie.gmin)*((n-1)/n)
+#obliczam statystykę T przy załozeniu H0:
+t <- ((mean_mazowieckie-25)/sqrt(s))*sqrt(n-1)
+show(t)
+```
+Następnie obliczam p-value:  
+```{r, echo=FALSE}
+p_value <- pt(t,df)
+show(p_value)
+```
+P-value jest większe niż poziom istotności, więc nie mam podstaw do odrzucenia H0.  
+Zatem nie mam podstaw, żeby uznać że średnie zadłużenie jest mniejsze niż 25%.  
+Sprawdzam z t.test:
+```{r, echo=FALSE}
+show(t.test(mazowieckie$ZadĹ.uĹĽenie.gmin, alternative="less", mu=25))
+```
+Wyniki potwierdzają moje wnioski. Czemu jednk ich wartości się różnią?
+
+Zad.4.  
+H0: Wariancja zadłużenia w każdej z tych gmin jest równa 226.  
+H1: Wariancja zadłużenia w każdej z tych gmin nie jest równa 226.
+```{r, echo=FALSE}
+lodzkie <- Zadluzenie.gmin[Zadluzenie.gmin_clean$Nazwy.Wojewodztw == 'Łódzkie', ]
+pomorskie <- Zadluzenie.gmin[Zadluzenie.gmin_clean$Nazwy.Wojewodztw == 'Pomorskie', ]
+
+n_lodzkie <- dim(lodzkie)[1]
+n_pomorskie <- dim(pomorskie)[1]
+s_lodzkie <- var(lodzkie$ZadĹ.uĹĽenie.gmin)*((n_lodzkie-1)/n_lodzkie)
+s_pomorskie <- var(pomorskie$ZadĹ.uĹĽenie.gmin)*((n_pomorskie-1)/n_pomorskie)
+```
+Statystyka chi^2 oraz p-value dla zadłużenia gmin w województwie łódzkim wynosi (kolejno):
+```{r, echo=FALSE}
+chi2_lodzkie <- (n_lodzkie*s_lodzkie)/226
+show(chi2_lodzkie)
+show(1-pchisq(chi2_lodzkie, nrow(lodzkie)-1))
+show(pchisq(chi2_lodzkie, nrow(lodzkie)-1))
+```
+Zatem przy zalozeniu Ho bardzo prawdopodobynm jest otrzymanie takiej próbki. P-value większe od poziomu istotności, więc nie ma podstaw do odrzucenia H0.
+
+Statystyka chi^2 oraz p-value dla zadłużenia gmin w województwie pomorskim wynosi (kolejno):
+```{r, echo=FALSE}
+chi2_pomorskie <- (n_pomorskie*s_pomorskie)/226
+show(chi2_pomorskie)
+show(pchisq(chi2_pomorskie, 122))
+```
+Zatem przy zalozeniu Ho bardzo prawdopodobym jest otrzymanie takiej próbki. P-value większe od poziomu istotności, więc nie ma podstaw do odrzucenia H0.
+
+zad.5.  
+H0: Średnie zadłużenie w gminach w obu województwach jest takie samo.
+H1: Średnie zadłużenie w gminach w obu województwach różni się od siebie.
+Obliczam statystykę T:
+```{r, echo=FALSE}
+mean_lodzkie <- mean(lodzkie$ZadĹ.uĹĽenie.gmin)
+mean_pomorskie <- mean(pomorskie$ZadĹ.uĹĽenie.gmin)
+s_p <- (n_lodzkie*s_lodzkie + n_pomorskie*s_pomorskie)/(n_lodzkie+n_pomorskie-2)
+t <- (mean_lodzkie-mean_pomorskie)/sqrt(s_p*((1/n_lodzkie)+(1/n_pomorskie)))
+show(t)
+```
+P-value wynosi:
+```{r, echo=FALSE}
+df <- n_lodzkie+n_pomorskie-2
+p_value <- pt(t,df)
+show(p_value)
+```
+P-value mniejsze od poziomu istotności. Odrzucam H0, średnie zadłużenie w gminach w województwach łódzkim i pomorskim są różne.  
+Porównuję z t.test:
+```{r, echo=FALSE}
+show(t.test(pomorskie$ZadĹ.uĹĽenie.gmin, lodzkie$ZadĹ.uĹĽenie.gmin, alternative="two.sided", var.equal=TRUE))
+```
+Wyniki t-testu potwierdzają moje wnioski.
