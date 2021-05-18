@@ -1,0 +1,356 @@
+---
+title: "SAD_projekt_Apolonia Bokszycka"
+author: "Apolonia Bokszycka"
+date: "9 maja 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Zad. 1. Wczytaj dane, obejrzyj je i podsumuj w dwóch-trzech zdaniach. Pytania pomocnicze: ile
+jest obserwacji, ile zmiennych ilościowych, a ile jakościowych? Czy są zależności w zmiennych
+objaśniających (policz i podaj VIF)? Czy występują jakieś braki danych? (1 pkt)
+
+```{r, echo=FALSE}
+dane <- read.delim("C:/Users/LYNX/Documents/Kognitywistyka/Statystyczna Analiza Danych/projekt/people.tab.txt")
+#attach(dane)
+```
+Dane zawierają 500 obserwacji.  
+Mamy 7 zmiennych (predyktoróW): 4 zmienne ilościowe (age, weight, height, number of kids) i 3 zmienne jakościowe (gender, married, pet).  
+Dane zawierają:
+```{r, echo=FALSE}
+sum(is.na(dane))
+```
+brakujących danych.  
+  
+Sprawdzam VIF.  
+Zgodnie z artykułem "VARIANCE INFLATION FACTORS IN REGRESSION MODELS
+WITH DUMMY VARIABLES": "It is recommended that collinearity diagnostics be applied to the numeric
+predictors first to check for collinearity without the influence of any dummies, then add dummy
+variables in one at a time to see their effect on VIFs."
+
+Źródło: Murray, Leigh; Nguyen, Hien; Lee, Yu-Feng; Remmenga, Marta D.; and Smith, David W. (2012). "VARIANCE INFLATION FACTORS IN REGRESSION MODELS WITH DUMMY VARIABLES," Conference on Applied Statistics in Agriculture. https://doi.org/10.4148/2475-7772.1034 
+
+W dodatku, spodziewam się sztucznego podwyższenia wartości VIF po wprowadzeniu do modelu "dummy variables" (źródło: https://statisticalhorizons.com/multicollinearity ).
+
+Zatem najpierw obliczam VIF dla każdej zmiennej ilościowej w odniesieniu do pozostałych:
+```{r, echo=FALSE}
+library(car)
+library(caret)
+
+#Liczę VIF dla każdego predyktora numerycznego:
+vif(lm(age ~  weight + height + number_of_kids + gender + married + pet, data = dane))
+vif(lm(weight ~ height + number_of_kids + gender + married + pet + age, data = dane))
+vif(lm(height ~ number_of_kids + gender + married + pet + age + weight, data = dane))
+vif(lm(number_of_kids ~ gender + married + pet + age + weight + height, data = dane))
+```
+VIF poniżej 5 dla każdej zmiennej w każdym przypadku.  
+Tworzę "dummy variables", czyli zamieniam zmienne jakościowe na zmienne kodujące.
+```{r, echo=FALSE}
+dmy <- dummyVars(" ~ .", data = dane, fullRank = F)
+dane_transformed <- data.frame(predict(dmy, newdata = dane))
+
+vif(lm(age ~  weight + height + number_of_kids + dane_transformed$gender.man + married + pet, data = dane))
+vif(lm(age ~  weight + height + number_of_kids + dane_transformed$gender.man + dane_transformed$gender.woman + married + pet, data = dane))
+#vif(lm(age ~  weight + height + number_of_kids + dane_transformed$gender.man + dane_transformed$gender.woman + dane_transformed$gender.other + married + pet, data = dane))
+
+```
+Wprowadzając po kolei "dummy variables" widzę, że wartość VIF dla nich wzrasta, co oznacza, że są one współzależne. Po wprowadzeniu wszystkich "dummy variables" dla kategorii "gender" otrzymuję komunikat: "there are aliased coefficients in the model", co oznacza ich współliniowość w modelu. Jest to zgodne z przewidywaniami, dlatego ostatecznie uznaję, że nie ma zależności w zmiennych objaśniających.  
+
+
+
+Tworzę wykresy punktowe obrazujące zależność między każdą parą zmiennych ilościowych:
+```{r, echo=FALSE}
+library(ggplot2)
+library(GGally)
+ggpairs(dane, aes(col=gender), columns=c(1, 2, 3, 6))  
+```
+Widzimy, że predyktory weight i height są ze sobą dodatnio skorelowane (współczynnik korelacji = 0.67), jednak zgodnie z VIF jedna zmienna nie może być dokładnie objaśniona przez drugą.  
+  
+2. Podsumuj dane przynajmniej trzema różnymi wykresami. 
+(a) wykres typu scatterplot (taki jak na wykładzie 7 slajd 3) dla wszystkich zmiennych objaśniających ilościowych i zmiennej objaśnianej)
+```{r, echo=FALSE}
+pairs(expenses ~ age + weight + height + number_of_kids, data = dane)
+```
+(b) Wykresy typu pudełkowy (boxplot) dla jednej wybranej zmiennej ilościowej.
+```{r, echo=FALSE}
+ggplot(dane, aes(x=number_of_kids, y=expenses, color=number_of_kids)) + 
+  geom_boxplot(aes(group=number_of_kids), outlier.colour="steelblue", outlier.size=2) +
+  scale_fill_brewer(palette="Paired") + 
+  theme_minimal()
+```
+
+(c) Wykres typu słupkowy (barplot) dla jednej wybranej zmiennej jakościowej.
+
+```{r, echo=FALSE}
+ggplot(dane, aes(x=gender, y=expenses, color=gender)) + 
+  geom_bar(stat="identity", fill="white") +
+  theme_minimal() + 
+  scale_x_discrete(limits=c("woman", "man", "other"))
+
+```
+
+3. Podaj przedziały ufności dla wartości średniej i wariancji dla zmiennych wiek i wzrost.
+
+Aby podać przedziały ufności dla wartości średniej i wariancji dla zmiennych wiek i wzrost, zakładam że pochodzą one z rozkładu normalnego.  
+Wykres kwantylowy dla zmiennej "age" wygląda następująco:  
+```{r, echo=FALSE}
+qqnorm(dane$age)
+```
+Wykres układa się w kształt linii.  
+Wykres kwantylowy dla zmiennej "height" wygląda następująco:  
+```{r, echo=FALSE}
+qqnorm(dane$height)
+```
+Tutaj również wykres układa się (w większości) na kształt linii, więc uważam za uprawnione twierdzić, że obserwacje pochodzą z rozkładu normalnego. Na obu wykresach nie ma wyraźnie odstających punktów, więc nie usuwam żadnych obserwacji.
+
+Dla wszystkich obliczeń przyjmuję alpha = 0.95. 
+Obliczam przedział ufności dla średniej zmiennej "age".  
+Parametry rozkładu normalnego µ i σ nie są znane, więc do obliczenia przedziałów ufności dla średniej korzystam z rozkładu t-studenta. 
+```{r, echo=FALSE}
+#Tworzę funckję pomocniczą:
+confidence_interval_mean <- function(dts) {
+  alpha <- 0.95
+  X_dash <- mean(dts)
+  n <- length(dts)
+  s_2 <- (1/n)*sum((dts-X_dash)^2)
+  S <- sqrt(s_2)
+  q <- qt((1-(alpha/2)),df=(n-1))
+  ci_d <- X_dash-(q/(sqrt(n-1)))*S
+  ci_u <- X_dash+(q/(sqrt(n-1)))*S
+  a <- c(ci_d,ci_u)
+  return(a)
+}
+
+confidence_interval_mean(dane$age)
+```
+
+Otrzymujemy przedział ufności (39.45881, 39.50919) na poziomie ufności 1 - alpha = 0.05. Przedział jest wąski, zatem estymacja jest dokładna.  
+  
+Następnie obliczam przedział ufności dla wariancji zmiennej "age".  
+Parametry rozkładu normalnego µ i σ nie są znane, więc do obliczenia przedziałów ufności dla wariancji korzystam z rozkładu chi^2.
+```{r, echo=FALSE}
+confidence_interval_variance <- function(dts){
+  alpha <- 0.95
+  n <- length(dts)
+  X_dash <- mean(dts)
+  s_2 <- (1/n)*sum((dts-X_dash)^2)
+  ci_d <- (n*s_2)/qchisq((1-(alpha/2)), df=(n-1))
+  ci_u <- (n*s_2)/qchisq((alpha/2), df=(n-1))
+  a <- c(ci_d, ci_u)
+  return(a)
+}
+confidence_interval_variance(dane$age)
+```
+Otrzymujemy przedział ufności (80.36303, 81.00399) na poziomie ufności 1 - alpha = 0.05.  
+
+Przedział ufności na poziomie ufności 0.05 dla średniej zmiennej "height" to (kolejno dolny, górny):
+
+```{r, echo=FALSE}
+confidence_interval_mean(dane$height)
+```
+Przedział ufności na poziomie ufności 0.05 dla wariancji zmiennej "height" to (kolejno dolny, górny):
+```{r, echo=FALSE}
+confidence_interval_variance(dane$height)
+```
+
+zad.4. Sformułuj i zweryfikuj cztery hipotezy:  
+1. dotyczącą różnicy między średnią wartością wybranej zmiennej dla kobiet i dla
+mężczyzn.  
+  
+Wybieram zmienną "weight".  
+Hipoteza zerowa: Średnie wartości zmiennej "weight" dla kobiet i mężczyzn nie róźnią się.  
+Hipoteza alternatywna: Średnie wartości zmiennej "weight" dla kobiet i mężczyzn róźnią się.  
+  
+Aby przeprowadzić test istotności dla dwóch średnich, zakładam, że obie pochodzą rozkładu normalnego oraz homogeniczność wariancji.  
+Wykres kwantylowy zmiennej "weight" dla kobiet wygląda następująco:
+```{r, echo=FALSE}
+dane_ww <- as.data.frame(subset(dane, gender == "woman", select = c("weight", "gender")))
+qqnorm(y=dane_ww$weight)
+```
+
+Wykres kwantylowy zmiennej "weight" dla mężczyzn:
+```{r, echo=FALSE}
+dane_wm <- as.data.frame(subset(dane, gender == "man", select = c("weight", "gender")))
+qqnorm(y=dane_wm$weight)
+```
+Oba wykresy układają się w linii prostej, więc uważam za uprawnionie twierdzić, że obie średnie pochodzą z rozkładóW normalnych (nazywanych później N1 i N2). W dodatku przeprowadzam test test Shapiro-Wilka:
+
+```{r, echo=FALSE}
+shapiro.test(dane_ww$weight)
+shapiro.test(dane_wm$weight)
+```
+P-values dla obu testów są >> 0.05, więc nie ma podstaw do odrzucenia hipotezy, że obserwacje pochodzą z rozkładóW normalnych.  
+
+Sprawdzam założenie o homogeniczności wariancji:  
+```{r, echo=FALSE}
+dane_weight <- as.data.frame(subset(dane, gender == c("woman","man"), select = c("weight", "gender")))
+var.test(weight ~ gender, data = dane_weight)
+```
+P-value większe niż 0.05, zatem nie ma podstaw do odrzucenia hipotezy o homogeniczności wariancji.  
+
+Hipoteza zerowa: Średnie wartości zmiennej "weight" dla kobiet i mężczyzn nie róźnią się.  
+Hipoteza alternatywna: Średnie wartości zmiennej "weight" dla kobiet i mężczyzn róźnią się.  
+  
+Po sprawdzeniu założeń, mogę teraz przejść do przeprowadzeniu idependent t-test:
+```{r, echo=FALSE}
+t.test(dane_ww$weight, dane_wm$weight, var.equal = TRUE)
+```
+Statystyka testowa t = -1.4361 i wpada do zbioru przyjęć, zatem nie ma podstawy do odrzucenia HO. Wniosek: Średnie wartości zmiennej "weight" dla kobiet i mężczyzn nie róźnią się.  
+
+2.dot. niezależności między dwoma zmiennymi ilościowymi.  
+Wybieram zmienne "height" i "weight".  
+Hipoteza zerowa: Zmienna "height" i "weight" są niezależne. 
+Hipoteza alternatywna: Zmienne "height" i "weight" nie są niezależne.  
+Jak pokazałam wyżej, zmienne pochodzą z rozkładów normalnych, więc do zbadania niezależności skorzystam z Pearson Correlation Test:  
+```{r, echo=FALSE}
+cor.test(dane$weight, dane$height, method = "pearson")
+```
+P-value jest mniejsze od 0.05, zatem odrzucam H0 i przyjmuję hipotezę alternatywną: zmienne "weight" i "height" nie są niezależne. Współczynnik korelacji wynosi ~0.67 (co jest zgodne z informacją na pierwszym wykresie).  
+
+3.jedną dot. niezależności między dwoma zmiennymi jakościowymi:  
+  
+Wybieram zmienne "gender" oraz "married".  
+Przyjmuję poziom istotności róWny 0.05.  
+Hipoteza zerowa: Nie ma zależności między zmiennymi "gender" i "married".
+Hipoteza alternatywna: Istnieje zależność między "gender" i "married".
+  
+Tabela kontyngencji wygląda następująco:
+```{r, echo=FALSE}
+contingency_table <- table(dane$gender, dane$married)
+```
+Przechodze do przeprowadzenia testu chi^2 - Pearsona:  
+```{r, echo=FALSE}
+chisq.test(contingency_table, p=0.05)
+```
+P-value = 0.2729 jest większe od ustalonego poziomu istotności, zatem nie ma podstaw do odrzucenia HO. Wniosek: Nie ma zależności między zmiennymi "gender" i "married".
+
+4.jedną dot. rozkładu zmiennej (np. "zmienna A ma rozkład wykładniczy z parametrem 10")
+
+Wybieram zmienną "age". Sprawdzę, czy zmienna ma rozkład normalny ze średnią 30 i odchyleniem standardowym = 8.
+Hipoteza zerowa: Zmienna "age" ma rozkład normalny o parametrach średnia=30, odchylenie standardowe=8.
+Hipoteza alternatywna: Zmienna "age" nie ma rozkładu normalnego parametrach średnia=30, odchylenie standardowe=8.
+```{r, echo=FALSE}
+ks.test(dane$married, "pnorm", mean=45, sd=8)
+```
+P-value jest małe, zatem odrzucam HO i przyjmuję hipotezę alternatywną: Zmienna "age" nie ma rozkładu normalnego parametrach średnia=30, odchylenie standardowe=8 (czego można się było spodziewać po wcześniejszej analizie).  
+
+zad 5. Oszacuj model regresji liniowej, przyjmując za zmienną zależną (y) wydatki domowe
+(expenses) a zmienne niezależne (x) wybierając spośród pozostałych zmiennych. Rozważ,
+czy konieczne są transformacje zmiennych lub zmiennej objaśnianej. Podaj RSS, R^2, p-wartości i oszacowania współczynników i wybierz właściwe zmienne objaśniające, które
+najlepiej tłumaczą expenses. Sprawdź czy w wybranym przez Ciebie modelu spełnione są
+założenia modelu liniowego i przedstaw na wykresach diagnostycznych: wykresie zależności
+reszt od zmiennej objaśnianej,na wykresie reszt studentyzowanych i na wykresie dźwigni i
+przedyskutuj, czy są spełnione. (2 pkt).  
+  
+Na początku tworzę model wykorzystując wszystkie zmienne ilościowe oraz 3 zmienne jakościowe zamienione na zmienne kodujące (dalej nazywany "model1"").
+
+```{r, echo=FALSE}
+library(qpcR)
+model1 <- lm(expenses ~ age + weight + height + gender + married + number_of_kids + pet, data = dane)
+summary(model1)
+RSS(model1)
+summary(model1)$r.squared
+```
+W tym modelu istotne (p-values<0.05) są predyktory age, height, petferret oraz pethedgehog.  
+RSS = 22328238  
+RSE = 213.9  
+R^2 = 0.8610451  
+
+Zbadam dokładniej wpływ płci na expenses:
+
+```{r, echo=FALSE}
+model_gender <- lm(expenses ~ dane_transformed$gender.other + dane_transformed$gender.woman, data = dane_transformed)
+summary(model_gender)
+
+```
+Średnie wydatki osoby deklarującej płeć jako mężczyzna to 462.19, natomiast kobiety wydają o 81.90 więcej, a osoby deklarującej płeć jako "other o 60.61 więcej. Różnice te jednak nie są istotne statystycznie - duże p-wartości dla parametrów "other" i "woman" (wzrastają jeszcze w porównaniu do p-values dla tych samych parametrów w modelu1). Wniosek: Wydatki nie zależą istotnie od płci. 
+
+```{r, echo=FALSE}
+model_married <- lm(expenses ~ dane_transformed$marriedFALSE, data = dane_transformed)
+summary(model_married)
+```
+Tutaj również p-value dla predyktora "marriedFALSE" jest duże.
+Wydatki nie zależą również od tego czy ktoś jest w związku małżeńskim czy nie.
+
+Wiem róWnież ze wcześniejszej analizy, że zmienne "height" i "weight" są ze sobą skorelowane, więc dodam do modelu dodatkową zmienną, która uwzględni interakcję między tymi predyktorami.
+
+```{r, echo=FALSE}
+model_bez_u_synergii <- lm(expenses ~ height + weight, data = dane_transformed)
+model_synergia <- lm(expenses ~ height + weight + height*weight, data = dane_transformed)
+summary(model_synergia)
+summary(model_bez_u_synergii)
+aov(model_synergia)
+```
+Wbrew moim przewidywaniom, p-wartość dla termu interakcyjnego jest większa niż 0.05, co sugeruje,
+że rola tego termu w modelu nie jest istotna statystycznie.
+Model uwzględniający synergię tylko nieznacznie obniżył RSE (z 568.2 do 567.3), więc uważam, że wprowadzenie termu interakcyjnego jest niepotrzebne.   
+Natomiast p-values dla weight i height w modelu expenses ~ height + weight są duże (height traci istotność w porównaniu do modelu1), co sugeruje że wydatki nie zależa od wagi i wzrostu.
+
+W związku z powyższym (nieistotnością predyktorów gender, married, weight i height), tworzę model z predyktorami age, number of kids i pet.
+```{r, echo=FALSE}
+model2 <- lm(expenses ~ age + number_of_kids + pet, data = dane)
+summary(model2)
+RSS(model2)
+summary(model2)$r.squared
+```
+RSS = 23864536 (WZROSŁO - niedobrze, ale też RSS zasze zmiejsza się wraz z dodawaniem predyktorów, a tutaj mam ich mniej niż w model1)  
+RSE = 220 (WZROSŁO - niedobrze)  
+R^2 = 0.8514843 (ZMALAŁO)  
+
+Sprawdzam, jakie predyktory pet mogą mieć wpływ na wydatki:
+```{r, echo=FALSE}
+model_pet <- lm(expenses ~ pet, data = dane)
+summary(model_pet)
+#RSS(model3)
+#summary(model3)$r.squared
+```
+P-values poniżej 0.05 dla predyktorów pet.cat oraz pet.hedhehog, expenses nie zależy od innych predyktorów "pet".
+
+Dlatego tworzę model z predyktorami 
+```{r, echo=FALSE}
+model3 <- lm(expenses ~ age + number_of_kids + dane_transformed$pet.cat + dane_transformed$pet.hedgehog , data = dane_transformed)
+
+summary(model3)
+RSS(model3)
+summary(model3)$r.squared
+```
+RSS = 30189559 (jeszcze większe)  
+RSE = 247 (jeszcze większe)  
+R^2 = 0.8121219 (zmalało)  
+Rzeczywiście w tym modelu wszystkie predyktory są istotne, ale nie poprawiło to wyników RSE, RSS i R^2 w stosunku do modelu1. Dlatego ostatecznie wybieram model pierwszy jako najbardziej dopasowany (expenses ~ age + weight + height + gender + married + number_of_kids + pet).
+
+
+W tym modelu istotne (p-values<0.05) są predyktory age, height, petferret oraz pethedgehog, to znaczy że najlepiej tłumaczą one zmienną expenses (mają istotny wpływ na wydatki).  
+Oszacowania współczynników to (dla odpowiednich predyktoróW):  
+  
+(Intercept)    -2276.7455   
+age               57.5889    
+weight             1.2078        
+height             2.0637    
+genderother       44.1656      
+genderwoman      -21.7164        
+marriedTRUE       -9.8079        
+number_of_kids   -12.4393        
+petdog            29.2695        
+petferret        406.6324    
+pethedgehog      242.0460    
+petnone           21.7454
+
+Czy spełnione są założenia modelu liniowego?  
+```{r, echo=FALSE}
+res <- resid(model3) 
+plot(model3, which=1)
+```
+Wykres sugeruje, że dane nie są liniowe, a więc i że założenie o liniowości nie jest spełnione.  
+```{r, echo=FALSE}
+plot(model3, which=2)
+```
+Na wykresie reszt studentyzowanych widać, że istnieją obserwacje odległe o więcej niż 3 jednostki od 0 na osi "Standarized residuals", a więc outliery. Niewyrzucenie ich z danych prawdopodobnie poskutkowało gorszym dopasowaniem modelu.  
+
+```{r, echo=FALSE}
+plot(model3, which=5)
+```
+Średnia wartość dźwigni dla tego modelu wynosi (7+1)/500=0.032 (wykład 7, slajd 25). Zatem na powyższym wykresie widać obserwację (nr.409) o wysokiej dźwigni, która również mogła spowodować gorsze dopasowanie modelu.  
